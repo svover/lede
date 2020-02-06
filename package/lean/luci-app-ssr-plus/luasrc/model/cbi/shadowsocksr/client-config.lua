@@ -10,12 +10,12 @@ local sid = arg[1]
 local uuid = luci.sys.exec("cat /proc/sys/kernel/random/uuid")
 
 local function isKcptun(file)
-    if not fs.access(file, "rwx", "rx", "rx") then
-        fs.chmod(file, 755)
-    end
+	if not fs.access(file, "rwx", "rx", "rx") then
+		fs.chmod(file, 755)
+	end
 
-    local str = sys.exec(file .. " -v | awk '{printf $1}'")
-    return (str:lower() == "kcptun")
+	local str = sys.exec(file .. " -v | awk '{printf $1}'")
+	return (str:lower() == "kcptun")
 end
 
 
@@ -31,7 +31,7 @@ local encrypt_methods = {
 	"aes-256-cfb",
 	"aes-128-ctr",
 	"aes-192-ctr",
-	"aes-256-ctr",	
+	"aes-256-ctr",
 	"bf-cfb",
 	"camellia-128-cfb",
 	"camellia-192-cfb",
@@ -95,17 +95,17 @@ obfs = {
 }
 
 local securitys = {
-    "auto",
-    "none",
-    "aes-128-gcm",
-    "chacha20-poly1305"
+	"auto",
+	"none",
+	"aes-128-gcm",
+	"chacha20-poly1305"
 }
 
 
 m = Map(shadowsocksr, translate("Edit ShadowSocksR Server"))
 m.redirect = luci.dispatcher.build_url("admin/services/shadowsocksr/servers")
 if m.uci:get(shadowsocksr, sid) ~= "servers" then
-	luci.http.redirect(m.redirect) 
+	luci.http.redirect(m.redirect)
 	return
 end
 
@@ -114,7 +114,7 @@ s = m:section(NamedSection, sid, "servers")
 s.anonymous = true
 s.addremove   = false
 
-o = s:option(DummyValue,"ssr_url","SS/SSR/V2RAY URL") 
+o = s:option(DummyValue,"ssr_url","SS/SSR/V2RAY/TROJAN URL")
 o.rawhtml  = true
 o.template = "shadowsocksr/ssrurl"
 o.value =sid
@@ -124,8 +124,11 @@ o:value("ssr", translate("ShadowsocksR"))
 if nixio.fs.access("/usr/bin/ss-redir") then
 o:value("ss", translate("Shadowsocks New Version"))
 end
-if nixio.fs.access("/usr/bin/v2ray/v2ray") then
+if nixio.fs.access("/usr/bin/v2ray/v2ray") or nixio.fs.access("/usr/bin/v2ray") then
 o:value("v2ray", translate("V2Ray"))
+end
+if nixio.fs.access("/usr/sbin/trojan") then
+o:value("trojan", translate("Trojan"))
 end
 o.description = translate("Using incorrect encryption mothod may causes service fail to start")
 
@@ -149,6 +152,7 @@ o.password = true
 o.rmempty = true
 o:depends("type", "ssr")
 o:depends("type", "ss")
+o:depends("type", "trojan")
 
 o = s:option(ListValue, "encrypt_method", translate("Encrypt Method"))
 for _, v in ipairs(encrypt_methods) do o:value(v) end
@@ -327,18 +331,26 @@ o.rmempty = true
 o = s:option(Flag, "insecure", translate("allowInsecure"))
 o.rmempty = true
 o:depends("type", "v2ray")
+o:depends("type", "trojan")
 
 -- [[ TLS ]]--
 o = s:option(Flag, "tls", translate("TLS"))
 o.rmempty = true
 o.default = "0"
 o:depends("type", "v2ray")
+o:depends("type", "trojan")
+
+o = s:option(Value, "tls_host", translate("TLS Host"))
+--o:depends("type", "trojan")
+o:depends("tls", "1")
+o.rmempty = true
 
 -- [[ Mux ]]--
 o = s:option(Flag, "mux", translate("Mux"))
 o.rmempty = true
 o.default = "0"
 o:depends("type", "v2ray")
+o:depends("type", "trojan")
 
 o = s:option(Value, "concurrency", translate("Concurrency"))
 o.datatype = "uinteger"
@@ -376,14 +388,14 @@ function o.validate(self, value, section)
 		local kcp_file="/usr/bin/kcptun-client"
 		local enable = kcp_enable:formvalue(section) or kcp_enable.disabled
 		if enable == kcp_enable.enabled then
-    if not fs.access(kcp_file)  then
-        return nil, translate("Haven't a Kcptun executable file")
-    elseif  not isKcptun(kcp_file) then
-        return nil, translate("Not a Kcptun executable file")    
-    end
-    end
+	if not fs.access(kcp_file)  then
+		return nil, translate("Haven't a Kcptun executable file")
+	elseif  not isKcptun(kcp_file) then
+		return nil, translate("Not a Kcptun executable file")
+	end
+	end
 
-    return value
+	return value
 end
 o:depends("type", "ssr")
 o:depends("type", "ss")
